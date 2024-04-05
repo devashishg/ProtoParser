@@ -1,0 +1,66 @@
+syntax = "proto3";
+
+package userservice;
+
+// Define an enum for user roles
+enum Role {
+  USER = 0;
+  ADMIN = 1;
+}
+
+// Define a message for an address
+message Address {
+  string street = 1;
+  string city = 2;
+  string state = 3;
+  string zip = 4;
+}
+
+// Define a message for a user
+message User {
+  int32 id = 1;
+  string username = 2;
+  string email = 3;
+  Role role = 4;
+  Address address = 5;          // Embedded address message
+  repeated string hobbies = 6;  // Repeated field for hobbies
+}
+
+// Request message for registering a user
+message RegisterRequest {
+  string username = 1;
+  string email = 2;
+  string password = 3;
+  Role role = 4;  // Optional, defaults to USER
+  Address address = 5;
+}
+
+// Request message for getting user by ID
+message GetUserRequest {
+  int32 id = 1;
+}
+
+// Request message for updating user profile
+message UpdateProfileRequest {
+  int32 id = 1;                 // User ID for update
+  string email = 2;             // Optional, update email
+  repeated string hobbies = 3;  // Optional, update hobbies
+}
+
+// Response message for updating user profile
+message UpdateProfileResponse {
+  bool success = 1;
+  string message = 2;  // Optional error message
+}
+
+// Define a service for user management
+service UserService {
+  // RPC to register a new user
+  rpc RegisterUser(RegisterRequest) returns (User);
+
+  // RPC to get user details by ID
+  rpc GetUser(GetUserRequest) returns (User);
+
+  // RPC to update user profile
+  rpc UpdateProfile(UpdateProfileRequest) returns (UpdateProfileResponse);
+}

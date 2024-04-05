@@ -1,0 +1,22 @@
+{
+  "name": "protoparser",
+  "version": "1.0.0",
+  "description": "",
+  "main": "protos-treeshaking.js",
+  "scripts": {
+    "test": "node protos-treeshaking.js sample/sampleProto sample/input.txt"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/devashishg/ProtoParser.git"
+  },
+  "author": "Devashish",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/devashishg/ProtoParser/issues"
+  },
+  "peerDependencies": {
+    "clang-format": "^1.8.0"
+  },
+  "homepage": "https://github.com/devashishg/ProtoParser#readme"
+}

@@ -1,0 +1,45 @@
+syntax = "proto3";
+
+package userservice;
+
+message Address {
+  string street = 1;
+  string city = 2;
+  string state = 3;
+  string zip = 4;
+}
+
+message User {
+  enum Role {
+    USER = 0;
+    ADMIN = 1;
+  }
+  int32 id = 1;
+  string username = 2;
+  string email = 3;
+  Role role = 4;
+  Address address = 5;
+  repeated string hobbies = 6;
+}
+
+message RegisterRequest {
+  enum Role {
+    USER = 0;
+    ADMIN = 1;
+  }
+  string username = 1;
+  string email = 2;
+  string password = 3;
+  Role role = 4;
+  Address address = 5;
+}
+
+message GetUserRequest {
+  int32 id = 1;
+}
+
+service UserService {
+  rpc RegisterUser (RegisterRequest) returns (User);
+  rpc GetUser (GetUserRequest) returns (User);
+}
+
