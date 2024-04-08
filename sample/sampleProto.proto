@@ -5,7 +5,6 @@ package userservice;
 // Define an enum for user roles
 enum Role {
   USER = 0;
-  ADMIN = 1;
 }
 
 // Define a message for an address
@@ -21,18 +20,20 @@ message User {
   int32 id = 1;
   string username = 2;
   string email = 3;
-  Role role = 4;
-  Address address = 5;          // Embedded address message
   repeated string hobbies = 6;  // Repeated field for hobbies
 }
 
 // Request message for registering a user
 message RegisterRequest {
+  enum Role {
+    USER = 0;
+    ADMIN = 1;
+  }
   string username = 1;
   string email = 2;
   string password = 3;
   Role role = 4;  // Optional, defaults to USER
-  Address address = 5;
+  repeated Address address = 5;
 }
 
 // Request message for getting user by ID

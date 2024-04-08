@@ -6,7 +6,7 @@ const clangFormat = require('clang-format');
 const inputs = process.argv;
 
 // -----------------------------------------------------------------------
-// ----------------------------- Processing ------------------------------
+// ------------------------ Request Processing ---------------------------
 // -----------------------------------------------------------------------
 
 (async () => {
@@ -158,11 +158,14 @@ class ProtoShaker {
           independentConstruct = 'enum';
           const enumParts = trimmedLine.split(' ');
           currentEnum = enumParts[1].trim();
-          enums[currentEnum] = [];
+          if (currentconstruct === 'message') {
+            currentEnum = `${currentconstruct === 'message' ? messageName + '.' :  ''}${currentEnum}`
+          }
+          enums[currentEnum] = {values: []};
         } else if (independentConstruct === 'enum') {
           const enumParts = trimmedLine.split('=');
           const numbr = Number(enumParts[1].replace(';', ''));
-          enums[currentEnum][numbr] = enumParts[0].trim();
+          enums[currentEnum].values[numbr] = enumParts[0].trim();
         } else if (
           currentconstruct &&
           messageName &&
@@ -209,10 +212,17 @@ class ProtoShaker {
               .replace(';', ''),
           });
         }
-      } else if (trimmedLine === '}' && independentConstruct === 'enum') {
+      } else if (trimmedLine === '}') {
         // only enum case
-        independentConstruct = '';
-        currentEnum = '';
+        if(independentConstruct === 'enum') {
+          independentConstruct = '';
+          currentEnum = '';
+        } else if (currentconstruct === 'message') {
+          currentconstruct = '';
+          messageName = '';
+        } else if (currentconstruct === 'service') {
+          currentconstruct = '';
+        }
         val = iterator.next();
         continue;
       }
@@ -233,25 +243,59 @@ class ProtoShaker {
 
     for (const iterator of methods[serviceName]) {
       if (methodsToKeep.includes(iterator.methodName)) {
-        this.#DFSMarking(messages, iterator.input);
-        this.#DFSMarking(messages, iterator.output);
+        this.#DFSMarking(messages, enums, iterator.input, null);
+        this.#DFSMarking(messages, enums, iterator.output, null);
       }
     }
+    // console.log(JSON.stringify({ messages, enums, methods, serviceName, headerLines }));
     return { messages, enums, methods, headerLines, serviceName };
   }
 
   // Recursive visiting marker
-  #DFSMarking(messages, rootMessage) {
-    if (!messages[rootMessage] || messages[rootMessage].visited) {
+  #DFSMarking(messages, enums, currentMessageOrType, parentMessage) {
+    let typeEnum = 0;
+    if (!messages[currentMessageOrType]) {
+      if (
+        parentMessage &&
+        enums[`${parentMessage}.${currentMessageOrType}`] &&
+        enums[`${parentMessage}.${currentMessageOrType}`].visited
+      ) {
+        return;
+      } else if (
+        !parentMessage ||
+        (parentMessage && !enums[`${parentMessage}.${currentMessageOrType}`])
+      ) {
+        if (
+          !enums[currentMessageOrType] ||
+          enums[currentMessageOrType].visited
+        ) {
+          return;
+        } else {
+          typeEnum = 1;
+        }
+      } else if (enums[`${parentMessage}.${currentMessageOrType}`]) {
+        typeEnum = 2;
+      } else {
+        return;
+      }
+    } else if (messages[currentMessageOrType].visited) {
       return;
     }
-    messages[rootMessage].visited = true;
-    for (const iterator of messages[rootMessage].fields) {
-      if (!iterator.type.startsWith('repeated')) {
-        this.#DFSMarking(messages, iterator.type);
-      } else {
+    if (typeEnum) {
+      (typeEnum === 1) && (enums[currentMessageOrType].visited = true);
+      (typeEnum === 2) && (enums[`${parentMessage}.${currentMessageOrType}`].visited = true);
+      return;
+    }
+    messages[currentMessageOrType] && (messages[currentMessageOrType].visited = true);
+    for (const iterator of messages[currentMessageOrType].fields) {
+      if (iterator.type.startsWith('repeated')) {
         const typeVal = iterator.type.split(' ');
-        this.#DFSMarking(messages, typeVal[1]);
+        this.#DFSMarking(messages, enums, typeVal[1], currentMessageOrType);
+      } else if(iterator.type.startsWith('map'))  {
+        const typeVal = iterator.type.split(' ');
+        this.#DFSMarking(messages, enums, typeVal[1].replace('>', ''), currentMessageOrType);
+      } else {
+        this.#DFSMarking(messages, enums, iterator.type, currentMessageOrType);
       }
     }
   }
@@ -266,11 +310,17 @@ class ProtoShaker {
     // Enum Writer
     let createEnum = (iterator, indentationSpace = '') => {
       if (!enums[iterator]) return;
-      writer.write(`${indentationSpace}enum ${iterator} {\n`);
-      for (const [index, itera] of enums[iterator].entries()) {
+      let enumName = iterator;
+      const enumSplitProcessorData = iterator.split('.');
+      if(enumSplitProcessorData.length >= 2) {
+        enumName = enumSplitProcessorData[enumSplitProcessorData.length -1]
+      }
+      writer.write(`${indentationSpace}enum ${enumName} {\n`);
+      for (const [index, itera] of enums[iterator].values.entries()) {
         itera && writer.write(`${indentationSpace}  ${itera} = ${index};\n`);
       }
       writer.write(`${indentationSpace}}\n`);
+      delete enums[iterator].visited; 
     }
 
     for (const iterator of headerLines) {
@@ -283,9 +333,8 @@ class ProtoShaker {
 
       writer.write(`message ${iterator} {\n`);
       for (const itera of messages[iterator].fields) {
-        if (enums[itera.type]) {
-          createEnum(itera.type, '  ');
-          enums[itera.type].push(undefined);
+        if (enums[`${iterator}.${itera.type}`]) {
+          createEnum(`${iterator}.${itera.type}`, '  ');
         }
       }
       for (const itera of messages[iterator].fields) {
@@ -296,10 +345,10 @@ class ProtoShaker {
 
 
     for (const iterator in enums) {
-      let enumList = enums[iterator];
-      if(enumList[enumList.length-1]) {
-        createEnum(iterator);
+      if (enums[iterator] && !enums[iterator].visited) {
+        continue;
       }
+      createEnum(iterator);
     }
 
     writer.write(`service ${serviceName} {\n`);
